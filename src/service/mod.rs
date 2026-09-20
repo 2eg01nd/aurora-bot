@@ -16,7 +16,6 @@ pub mod responses {
     pub mod dart_package;
     pub mod demo_releases;
     pub mod faq;
-    pub mod gitlab_tags;
     pub mod user;
 }
 pub mod ssh {

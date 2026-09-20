@@ -19,7 +19,6 @@ use walkdir::WalkDir;
 use crate::service::command::exec;
 use crate::service::requests::client::ClientRequest;
 use crate::service::responses::demo_releases::DemoReleasesResponse;
-use crate::service::responses::gitlab_tags::GitlabTagsResponse;
 use crate::tools::macros::crash;
 
 use super::constants;
@@ -342,10 +341,12 @@ pub fn get_repo_url_psdk() -> Vec<String> {
     }
 }
 
-/// Get list flutters
 #[once(time = 300)]
-pub fn get_repo_flutter() -> Vec<GitlabTagsResponse> {
-    ClientRequest::new(None).get_repo_tags_flutter()
+pub fn get_repo_url_flutter_sdk() -> Vec<String> {
+    match ClientRequest::new(None).get_repo_url_flutter_sdk_files(&vec!["flutter_aurora"], None) {
+        Ok(value) => value,
+        Err(_) => vec![],
+    }
 }
 
 /// Get list demo app from repo

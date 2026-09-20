@@ -82,10 +82,7 @@ impl FlutterInstallIncoming {
         let start = SystemTime::now();
         StateMessageOutgoing::new_state(tr!("начинаем загрузку...")).send(send_type);
         // Download
-        let url = match model.url_repo {
-            Some(url_repo) => url_repo,
-            None => model.url_tar_gz,
-        };
+        let url = model.url;
         let path =
             single::get_request().download_file(url, StateMessageOutgoing::get_state_callback_file_small(send_type))?;
         let downloads = utils::move_to_downloads(vec![path])?;
