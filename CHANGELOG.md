@@ -2,11 +2,12 @@
 
 ## Info
 
-- Last tag: 0.1.8
+- Last tag: 0.1.9
 - Released: 12
 
 ## Versions
 
+- Version: 0.1.9 (20/09/2026)
 - Version: 0.1.8 (04/08/2025)
 - Version: 0.1.7 (27/06/2025)
 - Version: 0.1.6 (24/06/2025)
@@ -19,6 +20,12 @@
 - Version: 0.0.3 (21/02/2025)
 - Version: 0.0.2 (15/02/2025)
 - Version: 0.0.1 (06/02/2025)
+
+### Version: 0.1.8 (20/09/2025)
+
+#### Bug
+
+- Fix build ffmpeg-next dependency
 
 ### Version: 0.1.8 (04/08/2025)
 
