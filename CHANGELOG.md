@@ -2,11 +2,12 @@
 
 ## Info
 
-- Last tag: 0.1.9
+- Last tag: 0.1.10
 - Released: 12
 
 ## Versions
 
+- Version: 0.1.10 (20/09/2026)
 - Version: 0.1.9 (20/09/2026)
 - Version: 0.1.8 (04/08/2025)
 - Version: 0.1.7 (27/06/2025)
@@ -21,7 +22,13 @@
 - Version: 0.0.2 (15/02/2025)
 - Version: 0.0.1 (06/02/2025)
 
-### Version: 0.1.8 (20/09/2025)
+### Version: 0.1.10 (20/09/2025)
+
+#### Change
+
+- Change load method Flutter SDK
+
+### Version: 0.1.9 (20/09/2025)
 
 #### Bug
 
