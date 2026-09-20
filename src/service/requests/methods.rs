@@ -22,7 +22,6 @@ use crate::service::responses::demo_releases::DemoAppResponse;
 use crate::service::responses::demo_releases::DemoReleasesResponse;
 use crate::service::responses::faq::FaqResponse;
 use crate::service::responses::faq::FaqResponses;
-use crate::service::responses::gitlab_tags::GitlabTagsResponse;
 use crate::service::responses::user::UserResponse;
 use crate::tools::constants;
 use crate::tools::macros::crash;
@@ -167,28 +166,50 @@ impl ClientRequest {
         Ok(files)
     }
 
-    // Get info about Flutter from gitlab tags repo
-    pub fn get_repo_tags_flutter(&self) -> Vec<GitlabTagsResponse> {
-        let url = "https://gitlab.com/api/v4/projects/48571227/repository/tags?per_page=100".to_string();
-        let response = match self.get_request_auth(url) {
+    pub fn get_repo_url_flutter_sdk_files(
+        &self,
+        keys: &Vec<&str>,
+        url: Option<String>,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let url_default = "https://sdk-repo.omprussia.ru/sdk/flutter/releases/".to_string();
+        let url_level = match url {
+            Some(value) => value,
+            None => url_default,
+        };
+        let response = match self.get_request_auth(url_level.clone()) {
             Ok(response) => response,
-            Err(_) => return vec![],
+            Err(error) => Err(error)?,
         };
         let body = match tokio::task::block_in_place(|| Handle::current().block_on(response.text())) {
             Ok(value) => value,
-            Err(_) => return vec![],
+            Err(error) => Err(error)?,
         };
-        let mut result = match serde_json::from_str::<Vec<GitlabTagsResponse>>(&body) {
-            Ok(value) => value,
-            Err(_) => vec![],
-        };
-        for model in &mut result {
-            let version = model.name.replace("aurora", "").trim_matches('-').to_string();
-            let url_repo =
-                format!("https://sdk-repo.omprussia.ru/sdk/flutter/releases/flutter_aurora_{version}.tar.gz");
-            model.url_repo = utils::check_url(url_repo)
+        let document = Document::from(&body);
+        let a = document.select("a");
+        let links: Vec<String> = a.iter().map(|e| e.attr("href").unwrap().to_string()).collect();
+        let mut files: Vec<String> = vec![];
+        for link in links {
+            if link.contains("..") || link.contains("-pu-") {
+                continue;
+            }
+            if link.contains("exe") || link.contains("dmg") {
+                continue;
+            }
+            if link.contains("md5sum") || link.contains("md5") {
+                continue;
+            }
+            if !link.contains("/") {
+                let file_link = format!("{}{}", url_level, link);
+                for key in keys {
+                    if file_link.contains(key) {
+                        files.push(file_link);
+                        break;
+                    }
+                }
+                continue;
+            }
         }
-        return result;
+        Ok(files)
     }
 
     // Get demos applications from repo

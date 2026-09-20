@@ -1,54 +1,39 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::models::TraitModel;
-use crate::service::responses::gitlab_tags::GitlabTagsResponse;
 use crate::tools::macros::tr;
 use crate::tools::utils;
-use chrono::DateTime;
 use colored::Colorize;
 use human_sort::sort;
+use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FlutterAvailableModel {
-    pub tag: String,
-    pub version: String,
-    pub created_at: String,
-    pub url_gitlab: String,
-    pub url_zip: String,
-    pub url_tar_gz: String,
-    pub url_repo: Option<String>,
+    pub url: String,
+    pub version_full: String,
 }
 
 impl TraitModel for FlutterAvailableModel {
     fn get_id(&self) -> String {
-        format!("{:x}", md5::compute(self.version.as_bytes()))
+        format!("{:x}", md5::compute(self.version_full.as_bytes()))
     }
 
     fn get_key(&self) -> String {
-        self.version.clone()
+        self.version_full.clone()
     }
 
     fn print(&self) {
-        let mut data: Vec<String> = vec![];
-        let created_at = match DateTime::parse_from_rfc3339(&self.created_at) {
-            Ok(value) => value.format("%Y-%m-%d").to_string(),
-            Err(_) => self.created_at.clone(),
-        };
-        let mut message = tr!(
-            "Flutter SDK: {}\nДата релиза: {}\nGitLab: {}\nСсылка (zip): {}\nСсылка (tar.gz): {}",
-            self.version.bold().white(),
-            created_at.bold().white(),
-            self.url_gitlab.to_string().bright_blue(),
-            self.url_zip.to_string().bright_blue(),
-            self.url_tar_gz.to_string().bright_blue(),
+        println!(
+            "{}",
+            tr!(
+                "Flutter SDK: {}\nСсылка: {}",
+                self.version_full.bold().white(),
+                self.url.to_string().bright_blue(),
+            )
         );
-        if let Some(url) = self.url_repo.clone() {
-            message = tr!("{}\nСсылка (repo): {}", message, url.to_string().bright_blue())
-        }
-        data.push(message);
-        println!("{}", data.join("\n\n"));
     }
 }
 
@@ -56,54 +41,77 @@ impl FlutterAvailableModel {
     pub fn search() -> Vec<FlutterAvailableModel> {
         match Self::search_full() {
             Ok(value) => value,
-            Err(_) => vec![],
+            Err(e) => {
+                eprintln!("Ошибка при получении списка версий Flutter SDK: {}", e);
+                vec![]
+            }
         }
     }
 
     pub fn search_filter<T: Fn(&FlutterAvailableModel) -> bool>(filter: T) -> Vec<FlutterAvailableModel> {
-        Self::search().iter().filter(|e| filter(e)).cloned().collect()
+        Self::search().into_iter().filter(filter).collect()
     }
 
     fn search_full() -> Result<Vec<FlutterAvailableModel>, Box<dyn std::error::Error>> {
-        let tags_flutter = utils::get_repo_flutter();
-        // Clear tags version
-        let mut versions: Vec<String> = vec![];
-        let mut version_tags: HashMap<String, GitlabTagsResponse> = HashMap::new();
-        for tag in tags_flutter {
-            let version = tag.name.replace("aurora", "").trim_matches('-').to_string();
-            if !version_tags.contains_key(&version) {
-                version_tags.insert(version.clone(), tag);
-                versions.push(version);
+        let url_files = utils::get_repo_url_flutter_sdk();
+
+        // Универсальный Regex для извлечения версии (например, "3.41.4" или "3.41.4-beta.1")
+        let version_regex = Regex::new(r"flutter_aurora(?:_[^_]+)?_([^_]+)\.tar\.gz")?;
+
+        let mut version_urls: HashMap<String, Vec<String>> = HashMap::new();
+        let mut versions_set: HashSet<String> = HashSet::new();
+
+        for url in url_files {
+            // ПЕРЕВЕДЕНО В НИЖНИЙ РЕГИСТР ДЛЯ НАДЁЖНОГО ПОИСКА
+            let lower_url = url.to_lowercase();
+
+            // ОТСЕКАЕМ mac И beta ОДНОВРЕМЕННО
+            if lower_url.contains("mac") || lower_url.contains("beta") {
+                continue;
+            }
+
+            // Извлекаем имя файла из полного URL
+            let file_name = url.split('/').last().unwrap_or("");
+
+            // Извлекаем версию с помощью регулярного выражения
+            if let Some(caps) = version_regex.captures(file_name) {
+                let version_full = caps.get(1).unwrap().as_str().to_string();
+
+                version_urls
+                    .entry(version_full.clone())
+                    .or_insert_with(Vec::new)
+                    .push(url);
+
+                versions_set.insert(version_full);
             }
         }
-        // Sort version
-        let mut versions = versions.iter().map(|e| e.as_str()).collect::<Vec<&str>>();
+
+        // Сортируем версии с помощью human_sort (от новых к старым)
+        let mut versions: Vec<&str> = versions_set.iter().map(|s| s.as_str()).collect();
         sort(&mut versions);
-        let reverse = versions.iter().copied().rev().collect::<Vec<&str>>();
-        // Map to model
-        let mut models: Vec<FlutterAvailableModel> = vec![];
-        for version in reverse {
-            let model = version_tags.get(version).unwrap();
-            let created_at = match model.created_at.clone() {
-                Some(value) => value,
-                None => model.commit.committed_date.clone(),
-            };
+        versions.reverse();
 
-            let url_zip =
-                format!("https://gitlab.com/omprussia/flutter/flutter/-/archive/{version}/flutter-{version}.zip");
-            let url_tar_gz =
-                format!("https://gitlab.com/omprussia/flutter/flutter/-/archive/{version}/flutter-{version}.tar.gz");
+        // Формируем итоговый вектор моделей без дубликатов
+        let mut models: Vec<FlutterAvailableModel> = Vec::new();
+        let mut seen_ids: HashSet<String> = HashSet::new();
 
-            models.push(FlutterAvailableModel {
-                tag: model.name.clone(),
-                version: version.to_string(),
-                created_at,
-                url_gitlab: format!("https://gitlab.com/omprussia/flutter/flutter/-/tree/{version}"),
-                url_zip,
-                url_tar_gz,
-                url_repo: model.url_repo.clone(),
-            });
+        for version_full in versions {
+            if let Some(urls) = version_urls.get(version_full) {
+                for url in urls {
+                    let model = FlutterAvailableModel {
+                        url: url.clone(),
+                        version_full: version_full.to_string(),
+                    };
+
+                    let id = model.get_id();
+                    if !seen_ids.contains(&id) {
+                        seen_ids.insert(id);
+                        models.push(model);
+                    }
+                }
+            }
         }
+
         Ok(models)
     }
 }
